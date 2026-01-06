@@ -10,9 +10,6 @@ const User = require('./models/User');
 // Load env vars
 dotenv.config();
 
-// Connect to database
-connectDB();
-
 const app = express();
 
 // Trust proxy for correct IP capturing
@@ -24,6 +21,7 @@ app.use(cors());
 app.use(helmet({
     crossOriginResourcePolicy: false, // For video streaming
 }));
+
 if (process.env.NODE_ENV === 'development') {
     app.use(morgan('dev'));
 }
@@ -53,6 +51,11 @@ const seedAdmin = async () => {
         const adminEmail = process.env.ADMIN_EMAIL;
         const adminPassword = process.env.ADMIN_PASSWORD;
 
+        if (!adminEmail || !adminPassword) {
+            console.warn('Admin credentials missing in env, skipping seed.');
+            return;
+        }
+
         const existingAdmin = await User.findOne({ email: adminEmail });
         if (!existingAdmin) {
             await User.create({
@@ -64,13 +67,29 @@ const seedAdmin = async () => {
             console.log('Admin user seeded successfully');
         }
     } catch (error) {
-        console.error('Error seeding admin:', error);
+        console.error('Error seeding admin:', error.message);
     }
 };
 
-const PORT = process.env.PORT || 5000;
+// Initialize DB and Start Server
+const init = async () => {
+    try {
+        await connectDB();
+        await seedAdmin();
+    } catch (err) {
+        console.error('Initialization failed:', err.message);
+    }
+};
 
-app.listen(PORT, async () => {
-    console.log(`Server running in ${process.env.NODE_ENV || 'development'} mode on port ${PORT}`);
-    await seedAdmin();
-});
+init();
+
+// Export app for Vercel
+module.exports = app;
+
+// Listen only if not on Vercel
+if (process.env.NODE_ENV !== 'production' && !process.env.VERCEL) {
+    const PORT = process.env.PORT || 5000;
+    app.listen(PORT, () => {
+        console.log(`Server running on port ${PORT}`);
+    });
+}
