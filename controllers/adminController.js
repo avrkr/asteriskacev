@@ -8,7 +8,8 @@ const { sendEmail, getWelcomeTemplate, getNotificationTemplate } = require('../u
 const { nanoid } = require('nanoid');
 const fs = require('fs');
 const path = require('path');
-const { put, del, handleUpload } = require('@vercel/blob');
+const { put, del } = require('@vercel/blob');
+const { handleUpload } = require('@vercel/blob/client');
 
 // --- User Management ---
 
