@@ -6,9 +6,13 @@ const videoSchema = new mongoose.Schema({
         required: [true, 'Video title is required'],
         trim: true
     },
+    videoUrl: {
+        type: String,
+        required: [true, 'Video URL is required']
+    },
     filename: {
         type: String,
-        required: [true, 'File path is required']
+        // Optional for backward compatibility with local files
     },
     domain: {
         type: mongoose.Schema.Types.ObjectId,

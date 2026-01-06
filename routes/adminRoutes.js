@@ -9,7 +9,7 @@ const {
     getTopicsByDomain, createTopic,
     getVideos, createVideo, deleteVideo,
     getUserAccessRules, createAccessRule, deleteAccessRule,
-    getLogs, getAdminStream
+    getLogs, getAdminStream, handleBlobUpload
 } = require('../controllers/adminController');
 
 // Multer Config
@@ -64,6 +64,9 @@ router.delete('/access-rules/:id', deleteAccessRule);
 
 // Logs
 router.get('/logs', getLogs);
+
+// Vercel Blob Token Generation (Client-side upload)
+router.post('/upload/blob', handleBlobUpload);
 
 // Admin Streaming for Preview
 router.get('/stream/:id', getAdminStream);

@@ -8,6 +8,7 @@ const { sendEmail, getWelcomeTemplate, getNotificationTemplate } = require('../u
 const { nanoid } = require('nanoid');
 const fs = require('fs');
 const path = require('path');
+const { put, del, handleUpload } = require('@vercel/blob');
 
 // --- User Management ---
 
@@ -113,23 +114,23 @@ exports.getTopicsByDomain = async (req, res) => {
 // --- Video Management ---
 
 exports.createVideo = async (req, res) => {
-    const { title, domain, topic, year, month, day, description } = req.body;
+    const { title, domain, topic, year, month, day, description, videoUrl, mimetype, size } = req.body;
 
-    if (!req.file) {
-        return res.status(400).json({ message: 'Please upload a video file' });
+    if (!videoUrl) {
+        return res.status(400).json({ message: 'Video URL is required' });
     }
 
     const video = await Video.create({
         title,
-        filename: req.file.filename,
+        videoUrl, // Use videoUrl instead of filename
         domain,
         topic,
         year,
         month,
         day,
         description,
-        mimetype: req.file.mimetype,
-        size: req.file.size
+        mimetype,
+        size
     });
 
     res.status(201).json(video);
@@ -143,7 +144,15 @@ exports.getVideos = async (req, res) => {
 exports.deleteVideo = async (req, res) => {
     const video = await Video.findById(req.params.id);
     if (video) {
-        // Note: In real production, also delete the file from storage
+        // Delete from Vercel Blob if it's a blob URL
+        if (video.videoUrl && video.videoUrl.includes('public.blob.vercel-storage.com')) {
+            try {
+                await del(video.videoUrl);
+            } catch (error) {
+                console.error('Failed to delete blob:', error);
+            }
+        }
+
         await Video.deleteOne({ _id: video._id });
         res.json({ message: 'Video removed' });
     } else {
@@ -193,7 +202,13 @@ exports.getAdminStream = async (req, res) => {
     const video = await Video.findById(req.params.id);
     if (!video) return res.status(404).json({ message: 'Video not found' });
 
-    const videoPath = path.join(__dirname, '../uploads', video.filename);
+    // If it's a Vercel Blob URL, redirect or stream it
+    if (video.videoUrl && video.videoUrl.startsWith('http')) {
+        return res.redirect(video.videoUrl);
+    }
+
+    // Fallback for old local files (won't work on Vercel prod)
+    const videoPath = path.join(__dirname, '../uploads', video.videoUrl || video.filename);
     if (!fs.existsSync(videoPath)) return res.status(404).json({ message: 'File not found' });
 
     const stat = fs.statSync(videoPath);
@@ -216,5 +231,31 @@ exports.getAdminStream = async (req, res) => {
     } else {
         res.writeHead(200, { 'Content-Length': fileSize, 'Content-Type': 'video/mp4' });
         fs.createReadStream(videoPath).pipe(res);
+    }
+};
+
+// Vercel Blob Upload Handler for Client-Side Uploads
+exports.handleBlobUpload = async (req, res) => {
+    try {
+        const jsonResponse = await handleUpload({
+            body: req.body,
+            request: req,
+            onBeforeGenerateToken: async (pathname) => {
+                // You can add logic here to check if the user is an admin
+                return {
+                    allowedContentTypes: ['video/mp4', 'video/mpeg', 'video/quicktime', 'video/x-msvideo'],
+                    tokenPayload: JSON.stringify({
+                        userId: req.user._id,
+                    }),
+                };
+            },
+            onUploadCompleted: async ({ blob, tokenPayload }) => {
+                console.log('blob upload completed', blob, tokenPayload);
+            },
+        });
+
+        return res.status(200).json(jsonResponse);
+    } catch (error) {
+        return res.status(400).json({ error: error.message });
     }
 };

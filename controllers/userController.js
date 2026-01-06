@@ -99,7 +99,13 @@ exports.streamVideo = async (req, res) => {
         console.error('Audit Log Error:', err);
     }
 
-    const videoPath = path.join(__dirname, '../uploads', video.filename);
+    // If it's a Vercel Blob URL, redirect to it
+    if (video.videoUrl && video.videoUrl.startsWith('http')) {
+        return res.redirect(video.videoUrl);
+    }
+
+    // Fallback for old local files
+    const videoPath = path.join(__dirname, '../uploads', video.videoUrl || video.filename);
 
     if (!fs.existsSync(videoPath)) {
         return res.status(404).json({ message: 'Video file not found on server' });
